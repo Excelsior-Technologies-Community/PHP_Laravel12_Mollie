@@ -8,14 +8,23 @@ use App\Models\Payment;
 
 class PaymentController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return view('payment');
+        $search = $request->search;
+
+        $payments = Payment::when($search, function ($query) use ($search) {
+            $query->where('payment_id', 'like', "%{$search}%")
+                ->orWhere('status', 'like', "%{$search}%")
+                ->orWhere('amount', 'like', "%{$search}%");
+        })
+            ->oldest()
+            ->paginate(5);
+
+        return view('payment', compact('payments'));
     }
 
     public function pay(Request $request)
     {
-        //  Validate input
         $request->validate([
             'amount' => 'required|numeric|min:1'
         ]);
@@ -27,13 +36,12 @@ class PaymentController extends Controller
                 "currency" => "EUR",
                 "value" => number_format($request->amount, 2, '.', '')
             ],
+
             "description" => "Laravel Mollie Payment",
 
-            //  Redirect only (no webhook to avoid error)
             "redirectUrl" => route('payment.success'),
         ]);
 
-        //  Save payment
         Payment::create([
             'payment_id' => $payment->id,
             'amount' => $request->amount,
@@ -47,7 +55,6 @@ class PaymentController extends Controller
     {
         $mollie = Mollie::api();
 
-        // Get latest payment (simple logic)
         $record = Payment::latest()->first();
 
         if (!$record) {
@@ -57,13 +64,28 @@ class PaymentController extends Controller
         $payment = $mollie->payments->get($record->payment_id);
 
         if ($payment->isPaid()) {
-            $record->update(['status' => 'paid']);
-            return view('success');
+
+            $record->update([
+                'status' => 'paid'
+            ]);
+
+            return redirect('/')->with('success', 'Payment successful');
         } elseif ($payment->isFailed()) {
-            $record->update(['status' => 'failed']);
+
+            $record->update([
+                'status' => 'failed'
+            ]);
+
             return redirect('/')->with('error', 'Payment failed');
         }
 
         return redirect('/')->with('error', 'Payment pending');
+    }
+
+    public function destroy($id)
+    {
+        Payment::findOrFail($id)->delete();
+
+        return redirect('/')->with('success', 'Payment deleted successfully');
     }
 }
