@@ -524,9 +524,3 @@ PHP_Laravel12_Mollie/
 ---
 
 Your PHP_Laravel12_Mollie Project is now ready!
-
-
-<<<<<<< HEAD
-
-=======
->>>>>>> development
