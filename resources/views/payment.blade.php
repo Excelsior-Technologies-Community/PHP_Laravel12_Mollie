@@ -13,41 +13,42 @@
 
     <div class="max-w-6xl mx-auto">
 
-        <!-- Title -->
-        <div class="text-center mb-10">
-            <h1 class="text-4xl font-bold text-white mb-2">
-                💳 Laravel Mollie Payment
-            </h1>
+        <div class="flex justify-between items-center mb-10">
+            <div>
+                <h1 class="text-4xl font-bold text-white mb-2">
+                    💳 Laravel Mollie Payment
+                </h1>
+                <p class="text-indigo-100">
+                    Secure online payment integration using Mollie
+                </p>
+            </div>
 
-            <p class="text-indigo-100">
-                Secure online payment integration using Mollie
-            </p>
+            <a href="{{ route('analytics.index') }}"
+                class="bg-white text-indigo-700 px-4 py-2 rounded-lg font-semibold h-fit">
+                📊 Analytics
+            </a>
         </div>
 
         <div class="grid md:grid-cols-2 gap-8">
 
-            <!-- Payment Form -->
             <div class="bg-white rounded-2xl shadow-2xl p-8">
 
                 <h2 class="text-2xl font-bold mb-6 text-gray-800">
                     Make Payment
                 </h2>
 
-                <!-- Success -->
                 @if(session('success'))
                     <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-4">
                         {{ session('success') }}
                     </div>
                 @endif
 
-                <!-- Error -->
                 @if(session('error'))
                     <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
                         {{ session('error') }}
                     </div>
                 @endif
 
-                <!-- Validation -->
                 @if($errors->any())
                     <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
                         <ul class="list-disc ml-5">
@@ -64,10 +65,19 @@
 
                     <div>
                         <label class="block mb-2 text-gray-700 font-semibold">
+                            Email (for invoice)
+                        </label>
+
+                        <input type="email" name="email" placeholder="you@example.com"
+                            class="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block mb-2 text-gray-700 font-semibold">
                             Enter Amount (€)
                         </label>
 
-                        <input type="number" name="amount" step="0.01" min="1" placeholder="Enter amount"
+                        <input type="number" name="amount" step="0.01" min="1" max="10000" placeholder="Enter amount (max €10,000)"
                             class="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none">
 
                     </div>
@@ -82,7 +92,6 @@
                 </form>
             </div>
 
-            <!-- Payment History -->
             <div class="bg-white rounded-2xl shadow-2xl p-8">
 
                 <div class="flex justify-between items-center mb-5">
@@ -129,6 +138,11 @@
 
                                     <td class="p-3">
                                         €{{ $payment->amount }}
+                                        @if($payment->refunded_amount > 0)
+                                            <span class="block text-xs text-red-500">
+                                                Refunded €{{ $payment->refunded_amount }}
+                                            </span>
+                                        @endif
                                     </td>
 
                                     <td class="p-3">
@@ -139,10 +153,10 @@
                                                 Paid
                                             </span>
 
-                                        @elseif($payment->status == 'failed')
+                                        @elseif(in_array($payment->status, ['failed', 'expired', 'canceled']))
 
                                             <span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm">
-                                                Failed
+                                                {{ ucfirst($payment->status) }}
                                             </span>
 
                                         @else
@@ -153,23 +167,51 @@
 
                                         @endif
 
+                                        @if($payment->refund_status)
+                                            <span class="block text-xs text-gray-500 mt-1">
+                                                {{ str_replace('_', ' ', ucfirst($payment->refund_status)) }}
+                                            </span>
+                                        @endif
+
                                     </td>
 
                                     <td class="p-3">
 
-                                        <form action="{{ route('payment.delete', $payment->id) }}" method="POST">
+                                        <div class="flex gap-2 flex-wrap">
 
-                                            @csrf
-                                            @method('DELETE')
+                                            @if($payment->status == 'paid' && $payment->remainingRefundable() > 0)
 
-                                            <button onclick="return confirm('Delete payment?')"
-                                                class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg">
+                                                <form action="{{ route('payment.refund', $payment->id) }}" method="POST"
+                                                    class="flex gap-1"
+                                                    onsubmit="return confirm('Refund €' + this.refund_amount.value + '?')">
+                                                    @csrf
+                                                    <input type="number" name="refund_amount" step="0.01" min="0.01"
+                                                        max="{{ $payment->remainingRefundable() }}"
+                                                        value="{{ $payment->remainingRefundable() }}"
+                                                        class="w-20 border rounded-lg px-2 py-1 text-sm">
+                                                    <button type="submit"
+                                                        class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-lg text-sm">
+                                                        Refund
+                                                    </button>
+                                                </form>
 
-                                                Delete
+                                            @endif
 
-                                            </button>
+                                            <form action="{{ route('payment.delete', $payment->id) }}" method="POST">
 
-                                        </form>
+                                                @csrf
+                                                @method('DELETE')
+
+                                                <button onclick="return confirm('Delete payment?')"
+                                                    class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm">
+
+                                                    Delete
+
+                                                </button>
+
+                                            </form>
+
+                                        </div>
 
                                     </td>
 
@@ -191,7 +233,6 @@
 
                 </div>
 
-                <!-- Pagination -->
                 <div class="mt-5">
                     {{ $payments->links() }}
                 </div>
@@ -203,5 +244,4 @@
     </div>
 
 </body>
-
 </html>
